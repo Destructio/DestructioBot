@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "ru.destructio"
-version = "1.1-LOGless"
+version = "1.2-Logless"
 
 repositories {
     maven("https://m2.dv8tion.net/releases")
