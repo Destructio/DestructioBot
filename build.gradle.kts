@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "ru.destructio"
-version = "1.2-Logless"
+version = "1.3"
 
 repositories {
     maven("https://m2.dv8tion.net/releases")
@@ -14,9 +14,12 @@ repositories {
 }
 
 dependencies {
-    implementation("com.discord4j:discord4j-core:3.1.7")
+    implementation("com.discord4j:discord4j-core:3.2.0")
     implementation("com.sedmelluq:lavaplayer:1.3.77")
-    //implementation("log4j:log4j:1.2.17")
+
+    // https://mvnrepository.com/artifact/org.apache.logging.log4j/log4j-slf4j-impl
+    implementation("org.apache.logging.log4j:log4j-slf4j-impl:2.14.1")
+
 }
 
 tasks.test {
