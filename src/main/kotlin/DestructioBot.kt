@@ -6,6 +6,7 @@ import com.sedmelluq.discord.lavaplayer.source.AudioSourceManagers
 import com.sedmelluq.discord.lavaplayer.track.playback.AudioFrameBufferFactory
 import com.sedmelluq.discord.lavaplayer.track.playback.NonAllocatingAudioFrameBuffer
 import audio.TrackScheduler
+import discord4j.core.DiscordClient
 import discord4j.core.DiscordClientBuilder
 import discord4j.core.`object`.entity.channel.VoiceChannel
 import discord4j.core.event.domain.message.MessageCreateEvent
@@ -17,11 +18,42 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class DestructioBot(private val apiToken: String) {
     private val commands: MutableMap<String, Command> = HashMap() // Create a list of commands
-    private val playerManager: AudioPlayerManager = DefaultAudioPlayerManager() // Create AudioPlayer instances and translates URLs to AudioTrack instances
-    private val player: AudioPlayer = playerManager.createPlayer()  // Create an AudioPlayer so Discord4J can receive audio data
-    private val log: Logger = LogManager.getLogger(DestructioBot::class.java) // Create Logger
+    private val playerManager = DefaultAudioPlayerManager() // Create AudioPlayer instances and translates URLs to AudioTrack instances
+    private val player = playerManager.createPlayer()  // Create an AudioPlayer so Discord4J can receive audio data
+    private val log = LogManager.getLogger(DestructioBot::class.java) // Create Logger
+    private var bot = DiscordClientBuilder.create(apiToken).build().login().block()!! // Create DiscordClient for bot
 
     fun start(){
+        configurePlayer()
+        log.info("Setting the MessageCreateEvent.")
+
+        bot.eventDispatcher.on(MessageCreateEvent::class.java)
+            /* subscribe is like block, in that it will *request* for action
+             to be done, but instead of blocking the thread, waiting for it
+             to finish, it will just execute the results asynchronously.*/
+            .subscribe {
+                    event: MessageCreateEvent -> commandsReact(event)
+            }
+
+        bot.onDisconnect().block()
+        log.info("Closing Bot.")
+    }
+    private fun commandsReact(event: MessageCreateEvent){
+        val content = event.message.content
+
+        for ((key, value) in commands) {
+            if (content.startsWith("!$key")) {
+                log.info("Query from ${event.message.author.get().username}  -  Message: $content")
+                value.execute(event)
+                break
+            }
+        }
+        if (content.startsWith(">rs") || content.startsWith(">recent"))
+            event.message.delete().block()
+    }
+
+    private fun configurePlayer()
+    {
         log.info("Starting the Destructio Bot with token: $apiToken")
 
         // This is an optimization strategy that Discord4J can utilize. It is not important to understand
@@ -32,35 +64,6 @@ class DestructioBot(private val apiToken: String) {
 
         // Allow playerManager to parse remote sources like YouTube links
         AudioSourceManagers.registerRemoteSources(playerManager)
-
-        // Create Bot object
-        val bot = DiscordClientBuilder.create(apiToken)
-            .build()
-            .login()
-            .block()!!
-
-        log.info("DestructioBot is successfully created! Setting the MessageCreateEvent now.")
-
-        bot.eventDispatcher.on(MessageCreateEvent::class.java)
-            /* subscribe is like block, in that it will *request* for action
-             to be done, but instead of blocking the thread, waiting for it
-             to finish, it will just execute the results asynchronously.*/
-            .subscribe { event: MessageCreateEvent ->
-                val content = event.message.content
-
-
-                for ((key, value) in commands) {
-                    if (content.startsWith("!$key")) {
-                        log.info("Query from ${event.message.author.get().username}  -  Message: $content")
-                        value.execute(event)
-                        break
-                    }
-                }
-                if (content.startsWith(">rs") || content.startsWith(">recent"))
-                    event.message.delete().block()
-            }
-        bot.onDisconnect().block()
-        log.info("Closing the DestructioBot!")
     }
 
     init {
@@ -107,7 +110,6 @@ class DestructioBot(private val apiToken: String) {
                 channel.join().block()
             }
         }
-
         val scheduler = TrackScheduler(player)
         commands["play"] = object : Command {
             override fun execute(event: MessageCreateEvent) {

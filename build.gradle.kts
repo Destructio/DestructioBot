@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "ru.destructio"
-version = "1.3"
+version = "1.3.1"
 
 repositories {
     maven("https://m2.dv8tion.net/releases")
@@ -27,7 +27,7 @@ tasks.test {
 }
 
 tasks.withType<KotlinCompile>() {
-    kotlinOptions.jvmTarget = "15"
+    kotlinOptions.jvmTarget = "16"
 }
 
 
