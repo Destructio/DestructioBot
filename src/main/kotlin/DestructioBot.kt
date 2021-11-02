@@ -1,84 +1,148 @@
+import audio.TrackScheduler
 import com.sedmelluq.discord.lavaplayer.format.AudioDataFormat
 import com.sedmelluq.discord.lavaplayer.player.DefaultAudioPlayerManager
 import com.sedmelluq.discord.lavaplayer.source.AudioSourceManagers
 import com.sedmelluq.discord.lavaplayer.track.playback.AudioFrameBufferFactory
 import com.sedmelluq.discord.lavaplayer.track.playback.NonAllocatingAudioFrameBuffer
-import audio.TrackScheduler
+import discord4j.common.util.Snowflake
 import discord4j.core.DiscordClientBuilder
+import discord4j.core.`object`.component.ActionRow
+import discord4j.core.`object`.component.Button
+import discord4j.core.`object`.entity.channel.MessageChannel
 import discord4j.core.`object`.entity.channel.VoiceChannel
+import discord4j.core.event.domain.interaction.ButtonInteractionEvent
 import discord4j.core.event.domain.message.MessageCreateEvent
 import org.apache.logging.log4j.LogManager
 import java.util.*
-import kotlin.collections.HashMap
 import java.util.concurrent.atomic.AtomicBoolean
+
 
 class DestructioBot(private val apiToken: String) {
     private val commands: MutableMap<String, Command> = HashMap() // Create a list of commands
-    private val playerManager = DefaultAudioPlayerManager() // Create AudioPlayer instances and translates URLs to AudioTrack instances
+    private val commandsOWO: MutableMap<String, Command> = HashMap() // Create a list of OWO bot commands
+    private val playerManager =
+        DefaultAudioPlayerManager() // Create AudioPlayer instances and translates URLs to AudioTrack instances
     private val player = playerManager.createPlayer()  // Create an AudioPlayer so Discord4J can receive audio data
     private val log = LogManager.getLogger(DestructioBot::class.java) // Create Logger
     private var bot = DiscordClientBuilder.create(apiToken).build().login().block()!! // Create DiscordClient for bot
+    private val postButton = Button.primary("1", "Опубликовать")
+    private val cancelButton = Button.primary("0", "Не публиковать")
 
-    fun start(){
+    fun start() {
         configurePlayer()
 
         bot.eventDispatcher.on(MessageCreateEvent::class.java)
             /* subscribe is like block, in that it will *request* for action
              to be done, but instead of blocking the thread, waiting for it
              to finish, it will just execute the results asynchronously.*/
-            .subscribe {
-                    event: MessageCreateEvent -> newMessageReact(event)
+            .subscribe { event: MessageCreateEvent ->
+                newMessageReact(event)
             }
 
         stop("Normal stop.")
     }
 
     fun stop(reason: String) {
-        log.info("Closing Bot. Reason: $reason")
         bot.onDisconnect().block()
+        log.info("Closing Bot. Reason: $reason")
     }
 
-    private fun newMessageReact(event: MessageCreateEvent){
+    private fun newMessageReact(event: MessageCreateEvent) {
 
         val message = event.message.content
         val username = event.message.author.get().username
+        val specialSymbol = message.substring(0, 1)
 
-        if(message.substring(0) == "!") {
+        if (specialSymbol == "!") {
+            log.info("Query from $username - Message: $message")
             for ((key, value) in commands) {
                 if (message.startsWith("!$key")) {
-                    log.info("Query from $username - Message: $message")
                     value.execute(event)
                     break
                 }
             }
-        }
-        else if ((message.startsWith(">rs") || message.startsWith(">recent")))
-        {
-            event.message.delete().block()
-        }
+        } else if (specialSymbol == ">") {
+            log.info("Query from $username to OWO bot - Message: $message")
+            for ((key, value) in commandsOWO) {
+                if (message.startsWith(">$key")) {
+                    value.execute(event)
+                    break
+                }
+            }
 
-        else
-        {
+        } else {
+            log.debug("Message from $username - Text: $message")
             // TODO: Antispam protection
         }
-
-
     }
 
     private fun configurePlayer() {
         log.info("Starting the Destructio Bot with token: $apiToken")
 
         // This is an optimization strategy that Discord4J can utilize. It is not important to understand
-        playerManager.configuration.frameBufferFactory = AudioFrameBufferFactory {
-                bufferDuration: Int, format: AudioDataFormat?, stopping: AtomicBoolean? ->
-            NonAllocatingAudioFrameBuffer(bufferDuration, format, stopping)
-        }
+        playerManager.configuration.frameBufferFactory =
+            AudioFrameBufferFactory { bufferDuration: Int, format: AudioDataFormat?, stopping: AtomicBoolean? ->
+                NonAllocatingAudioFrameBuffer(bufferDuration, format, stopping)
+            }
 
         // Allow playerManager to parse remote sources like YouTube links
         AudioSourceManagers.registerRemoteSources(playerManager)
     }
 
     init {
+        // OWO bot commands list
+        commandsOWO["rs"] = object : Command {
+            override fun execute(event: MessageCreateEvent) {
+                event.message.delete().block()
+            }
+        }
+        commandsOWO["recent"] = object : Command {
+            override fun execute(event: MessageCreateEvent) {
+                event.message.delete().block()
+            }
+        }
+
+        // DestructioBot commands list
+        commands["post"] = object : Command {
+            override fun execute(event: MessageCreateEvent) {
+
+                val moder = Snowflake.of(812673610757832706)
+                val main = Snowflake.of(534384759552344075)
+
+                val content = event.message.content
+                val post = content.removePrefix("!post")
+
+                bot.getChannelById(moder).cast(MessageChannel::class.java)
+                    .block()!!
+                    .createMessage(post)
+                    .withComponents(
+                        ActionRow.of(postButton, cancelButton)
+                    )
+                    .block()
+
+                bot.eventDispatcher.on(ButtonInteractionEvent::class.java)
+                    .subscribe { event: ButtonInteractionEvent ->
+                        log.info("ButtonInteractionEvent event - ${event.customId}")
+                        if (event.customId.equals("1")) {
+                            bot.getChannelById(main)
+                                .cast(MessageChannel::class.java)
+                                .block()!!
+                                .createMessage(post)
+                                .block()
+                            log.info("Опубликован пост: $post")
+
+                        } else if (event.customId.equals("0")) {
+                            log.info("Отменена публикация поста: $post")
+
+                        }
+                        else
+                        {
+                            log.error(event.customId)
+                        }
+                    }
+
+            }
+        }
         commands["ping"] = object : Command {
             override fun execute(event: MessageCreateEvent) {
                 event.message
@@ -134,5 +198,6 @@ class DestructioBot(private val apiToken: String) {
                 player.stopTrack()
             }
         }
+
     }
 }
