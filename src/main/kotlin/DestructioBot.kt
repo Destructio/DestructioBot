@@ -8,11 +8,14 @@ import discord4j.common.util.Snowflake
 import discord4j.core.DiscordClientBuilder
 import discord4j.core.`object`.component.ActionRow
 import discord4j.core.`object`.component.Button
+import discord4j.core.`object`.entity.Message
+import discord4j.core.`object`.entity.channel.Channel
 import discord4j.core.`object`.entity.channel.MessageChannel
 import discord4j.core.`object`.entity.channel.VoiceChannel
 import discord4j.core.event.domain.interaction.ButtonInteractionEvent
 import discord4j.core.event.domain.message.MessageCreateEvent
 import org.apache.logging.log4j.LogManager
+import java.time.Duration
 import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -105,42 +108,7 @@ class DestructioBot(private val apiToken: String) {
         // DestructioBot commands list
         commands["post"] = object : Command {
             override fun execute(event: MessageCreateEvent) {
-
-                val moder = Snowflake.of(812673610757832706)
-                val main = Snowflake.of(534384759552344075)
-
-                val content = event.message.content
-                val post = content.removePrefix("!post")
-
-                bot.getChannelById(moder).cast(MessageChannel::class.java)
-                    .block()!!
-                    .createMessage(post)
-                    .withComponents(
-                        ActionRow.of(postButton, cancelButton)
-                    )
-                    .block()
-
-                bot.eventDispatcher.on(ButtonInteractionEvent::class.java)
-                    .subscribe { event: ButtonInteractionEvent ->
-                        log.info("ButtonInteractionEvent event - ${event.customId}")
-                        if (event.customId.equals("1")) {
-                            bot.getChannelById(main)
-                                .cast(MessageChannel::class.java)
-                                .block()!!
-                                .createMessage(post)
-                                .block()
-                            log.info("Опубликован пост: $post")
-
-                        } else if (event.customId.equals("0")) {
-                            log.info("Отменена публикация поста: $post")
-
-                        }
-                        else
-                        {
-                            log.error(event.customId)
-                        }
-                    }
-
+                postFun(event)
             }
         }
         commands["ping"] = object : Command {
@@ -200,4 +168,54 @@ class DestructioBot(private val apiToken: String) {
         }
 
     }
+
+    private fun postFun(event: MessageCreateEvent) {
+
+        val moder = bot.getChannelById(Snowflake.of(812673610757832706))
+            .cast(MessageChannel::class.java).block()!!
+        val main = bot.getChannelById(Snowflake.of(534384759552344075))
+            .cast(MessageChannel::class.java).block()!!
+
+        val content = event.message.content
+        val post = content.removePrefix("!post")
+
+
+        val mdr = moder.createMessage(post)
+            .withComponents(
+                ActionRow.of(postButton, cancelButton)
+            ).block()!!
+
+        bot.eventDispatcher.on(ButtonInteractionEvent::class.java)
+            .timeout(Duration.ofDays(1))
+            .subscribe {
+                    buttonEvent: ButtonInteractionEvent -> postLogic(buttonEvent,main,mdr,post)
+            }
+
+    }
+
+    private fun postLogic(buttonEvent: ButtonInteractionEvent, main: MessageChannel,req: Message, post: String) {
+        log.info("ButtonInteractionEvent event - ${buttonEvent.customId}")
+
+        if (buttonEvent.customId.equals("1")) {
+            main.createMessage(post)
+                .block()
+            log.info("Опубликован пост в ${main.id} message: $post")
+
+
+        }
+        else if (buttonEvent.customId.equals("0")){
+            log.info("Отмена публикации поста: $post")
+        }
+
+        else log.error(buttonEvent.customId)
+
+        //buttonEvent.interactionResponse.createFollowupMessage("Решение принято!")
+        //buttonEvent.reply("Решение принято!")
+        //TODO: Response
+        req.edit().withComponents(
+            ActionRow.of(postButton.disabled(), cancelButton.disabled())
+        ).block()!!
+
+    }
 }
+
