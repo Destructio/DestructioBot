@@ -28,8 +28,12 @@ class DestructioBot(private val apiToken: String) {
     private val player = playerManager.createPlayer()  // Create an AudioPlayer so Discord4J can receive audio data
     private val log = LogManager.getLogger(DestructioBot::class.java) // Create Logger
     private var bot = DiscordClientBuilder.create(apiToken).build().login().block()!! // Create DiscordClient for bot
-    private val postButton = Button.primary("1", "Опубликовать")
-    private val cancelButton = Button.primary("0", "Не публиковать")
+
+
+    private val moder = bot.getChannelById(Snowflake.of(812673610757832706))
+        .cast(MessageChannel::class.java).block()!!
+    private val main = bot.getChannelById(Snowflake.of(534384759552344075))
+        .cast(MessageChannel::class.java).block()!!
 
     fun start() {
         configurePlayer()
@@ -51,6 +55,10 @@ class DestructioBot(private val apiToken: String) {
     }
 
     private fun newMessageReact(event: MessageCreateEvent) {
+
+        if (event.message.channelId.equals(Snowflake.of(812673610757832706))
+            || event.message.channelId.equals(Snowflake.of(534384759552344075)))
+            return
 
         val message = event.message.content
         val username = event.message.author.get().username
@@ -171,14 +179,11 @@ class DestructioBot(private val apiToken: String) {
 
     private fun postFun(event: MessageCreateEvent) {
 
-        val moder = bot.getChannelById(Snowflake.of(812673610757832706))
-            .cast(MessageChannel::class.java).block()!!
-        val main = bot.getChannelById(Snowflake.of(534384759552344075))
-            .cast(MessageChannel::class.java).block()!!
-
         val content = event.message.content
         val post = content.removePrefix("!post")
 
+        val postButton = Button.primary("1", "Опубликовать")
+        val cancelButton = Button.primary("0", "Не публиковать")
 
         val mdr = moder.createMessage(post)
             .withComponents(
@@ -188,33 +193,32 @@ class DestructioBot(private val apiToken: String) {
         bot.eventDispatcher.on(ButtonInteractionEvent::class.java)
             .timeout(Duration.ofDays(1))
             .subscribe {
-                    buttonEvent: ButtonInteractionEvent -> postLogic(buttonEvent,main,mdr,post)
+                    buttonEvent: ButtonInteractionEvent ->
+                postLogic(buttonEvent,main,post)
+                mdr.edit().withComponents(
+                    ActionRow.of(postButton.disabled(), cancelButton.disabled())
+                ).block()!!
             }
-
     }
 
-    private fun postLogic(buttonEvent: ButtonInteractionEvent, main: MessageChannel,req: Message, post: String) {
+    private fun postLogic(buttonEvent: ButtonInteractionEvent, main: MessageChannel, post: String) {
         log.info("ButtonInteractionEvent event - ${buttonEvent.customId}")
 
         if (buttonEvent.customId.equals("1")) {
             main.createMessage(post)
                 .block()
-            log.info("Опубликован пост в ${main.id} message: $post")
-
-
+            log.info("Опубликован пост в Main Channel message: $post")
+            buttonEvent.reply("Пост опубликован!").block()
         }
+        // TODO: Fix double post (when -> no -> yes = 2 posts)
         else if (buttonEvent.customId.equals("0")){
             log.info("Отмена публикации поста: $post")
+            buttonEvent.reply("Пост отклонён!").block()
         }
-
         else log.error(buttonEvent.customId)
 
-        //buttonEvent.interactionResponse.createFollowupMessage("Решение принято!")
-        //buttonEvent.reply("Решение принято!")
-        //TODO: Response
-        req.edit().withComponents(
-            ActionRow.of(postButton.disabled(), cancelButton.disabled())
-        ).block()!!
+
+
 
     }
 }
