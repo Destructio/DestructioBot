@@ -8,8 +8,6 @@ import discord4j.common.util.Snowflake
 import discord4j.core.DiscordClientBuilder
 import discord4j.core.`object`.component.ActionRow
 import discord4j.core.`object`.component.Button
-import discord4j.core.`object`.entity.Message
-import discord4j.core.`object`.entity.channel.Channel
 import discord4j.core.`object`.entity.channel.MessageChannel
 import discord4j.core.`object`.entity.channel.VoiceChannel
 import discord4j.core.event.domain.interaction.ButtonInteractionEvent
@@ -39,9 +37,6 @@ class DestructioBot(private val apiToken: String) {
         configurePlayer()
 
         bot.eventDispatcher.on(MessageCreateEvent::class.java)
-            /* subscribe is like block, in that it will *request* for action
-             to be done, but instead of blocking the thread, waiting for it
-             to finish, it will just execute the results asynchronously.*/
             .subscribe { event: MessageCreateEvent ->
                 newMessageReact(event)
             }
@@ -57,7 +52,8 @@ class DestructioBot(private val apiToken: String) {
     private fun newMessageReact(event: MessageCreateEvent) {
 
         if (event.message.channelId.equals(Snowflake.of(812673610757832706))
-            || event.message.channelId.equals(Snowflake.of(534384759552344075)))
+            || event.message.channelId.equals(Snowflake.of(534384759552344075))
+        )
             return
 
         val message = event.message.content
@@ -192,9 +188,8 @@ class DestructioBot(private val apiToken: String) {
 
         bot.eventDispatcher.on(ButtonInteractionEvent::class.java)
             .timeout(Duration.ofDays(1))
-            .subscribe {
-                    buttonEvent: ButtonInteractionEvent ->
-                postLogic(buttonEvent,main,post)
+            .subscribe { buttonEvent: ButtonInteractionEvent ->
+                postLogic(buttonEvent, main, post)
                 mdr.edit().withComponents(
                     ActionRow.of(postButton.disabled(), cancelButton.disabled())
                 ).block()!!
@@ -211,13 +206,10 @@ class DestructioBot(private val apiToken: String) {
             buttonEvent.reply("Пост опубликован!").block()
         }
         // TODO: Fix double post (when -> no -> yes = 2 posts)
-        else if (buttonEvent.customId.equals("0")){
+        else if (buttonEvent.customId.equals("0")) {
             log.info("Отмена публикации поста: $post")
             buttonEvent.reply("Пост отклонён!").block()
-        }
-        else log.error(buttonEvent.customId)
-
-
+        } else log.error(buttonEvent.customId)
 
 
     }
